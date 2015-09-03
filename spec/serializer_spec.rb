@@ -1,6 +1,5 @@
 describe JSONAPI::Serializer do
   def serialize_primary(serializer, options = {})
-    serializer.instance_variable_set('@_include_linkages', options[:include_linkages]) if options[:include_linkages]
     JSONAPI::Serializer.send(:serialize_primary, serializer, options)
   end
 
