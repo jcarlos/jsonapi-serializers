@@ -35,6 +35,25 @@ module JSONAPI
         @_include_linkages = options[:include_linkages] || []
       end
 
+      def include_linkages
+        @include_linkages ||= begin
+          if @_include_linkages.is_a?(String)
+            @_include_linkages.strip.split(/\s*,\s*/)
+          else
+            @_include_linkages.uniq
+          end
+        end
+      end
+
+      def direct_children_includes
+        @direct_children_includes ||= include_linkages.map{|link| link.sub(/\..*/, '') }.uniq
+      end
+
+      def include_linkages_for_child(child_name)
+          search_for = "#{child_name}."
+          include_linkages.select{|link| link.start_with? search_for }.map{|link| link[search_for.length..-1]}
+      end
+
       # Override this to customize the JSON:API "id" for this object.
       # Always return a string from this method to conform with the JSON:API spec.
       def id
@@ -101,9 +120,8 @@ module JSONAPI
             data[formatted_attribute_name]['links'] = {} if links_self || links_related
             data[formatted_attribute_name]['links']['self'] = links_self if links_self
             data[formatted_attribute_name]['links']['related'] = links_related if links_related
-            #puts "attribute_name = #{attribute_name}, @_include_linkages = #{@_include_linkages}"
 
-            if @_include_linkages.map{|link| link.sub(/\..*/, '')}.include?(formatted_attribute_name)
+            if direct_children_includes.include?(formatted_attribute_name)
               if related_object_serializer.nil? or related_object_serializer.object.nil?
                 # Spec: Resource linkage MUST be represented as one of the following:
                 # - null for empty to-one relationships.
@@ -135,7 +153,7 @@ module JSONAPI
             # - an empty array ([]) for empty to-many relationships.
             # - an array of linkage objects for non-empty to-many relationships.
             # http://jsonapi.org/format/#document-structure-resource-relationships
-            if @_include_linkages.map{|link| link.sub(/\..*/, '')}.include?(formatted_attribute_name)
+            if direct_children_includes.include?(formatted_attribute_name)
               data[formatted_attribute_name].merge!({'data' => []})
               serialized_objects = serialized_objects || []
               serialized_objects.each do |related_object_serializer|
@@ -165,13 +183,12 @@ module JSONAPI
         return {} if self.class.to_one_associations.nil?
         @has_one_relationships ||= begin
           data = {}
-          include_linkages = @_include_linkages.map{|link| link.sub(/[^.]+\.?/, '')}.reject(&:empty?) # one level more shallow than the current
           self.class.to_one_associations.each do |attribute_name, attr_data|
             next if !should_include_attr?(attr_data[:options][:if], attr_data[:options][:unless])
             value = evaluate_attr_or_block(attribute_name, attr_data[:attr_or_block])
             if value
               serializer_class = attr_data[:options][:serializer] || JSONAPI::Serializer.find_serializer_class(value)
-              data[attribute_name] = serializer_class.new(value, include_linkages: include_linkages)
+              data[attribute_name] = serializer_class.new(value, include_linkages: include_linkages_for_child(format_name(attribute_name)))
             else
               data[attribute_name] = nil
             end
@@ -184,13 +201,12 @@ module JSONAPI
         return {} if self.class.to_many_associations.nil?
         @has_many_relationships ||= begin
           data = {}
-          include_linkages = @_include_linkages.map{|link| link.sub(/[^.]+\.?/, '')}.reject(&:empty?) # one level more shallow than the current
           self.class.to_many_associations.each do |attribute_name, attr_data|
             next if !should_include_attr?(attr_data[:options][:if], attr_data[:options][:unless])
             objects = evaluate_attr_or_block(attribute_name, attr_data[:attr_or_block])
             if objects and objects.any?
               serializer_class = attr_data[:options][:serializer] || JSONAPI::Serializer.find_serializer_class(objects.first)
-              data[attribute_name] = objects.map{|obj| serializer_class.new obj, include_linkages: include_linkages }
+              data[attribute_name] = objects.map{|obj| serializer_class.new obj, include_linkages: include_linkages_for_child(format_name(attribute_name)) }
             else
               data[attribute_name] = []
             end
@@ -247,20 +263,13 @@ module JSONAPI
       passthrough_options = {
         context: options[:context],
         serializer: options[:serializer],
-        include: includes,
+        include_linkages: includes,
         base_url: options[:base_url]
       }
 
       if !options[:skip_collection_check] && options[:is_collection] && !objects.respond_to?(:each)
         raise JSONAPI::Serializer::AmbiguousCollectionError.new(
           'Attempted to serialize a single object as a collection.')
-      end
-
-      # Automatically include linkage data for any relation that is also included.
-      if includes
-        #direct_children_includes = includes.reject { |key| key.include?('.') }
-        #passthrough_options[:include_linkages] = direct_children_includes
-        passthrough_options[:include_linkages] = includes
       end
 
       # Spec: Primary data MUST be either:

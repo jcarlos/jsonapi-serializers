@@ -354,6 +354,7 @@ describe JSONAPI::Serializer do
         'data' => serialize_primary(MyApp::SimplestPostSerializer.new(post)),
       })
     end
+
     it 'handles include of nil to-one relationship with compound document' do
       post = create(:post)
 
@@ -363,6 +364,7 @@ describe JSONAPI::Serializer do
         'included' => [],
       })
     end
+
     it 'handles include of simple to-one relationship with compound document' do
       post = create(:post, :with_author)
 
