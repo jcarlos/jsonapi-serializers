@@ -1,5 +1,6 @@
 require 'set'
 require 'active_support/inflector'
+require 'active_support/core_ext/hash/keys'
 
 module JSONAPI
   module Serializer
@@ -252,6 +253,7 @@ module JSONAPI
       options[:include] = options.delete('include') || options[:include]
       options[:serializer] = options.delete('serializer') || options[:serializer]
       options[:context] = options.delete('context') || options[:context] || {}
+      options[:meta] = options.delete('meta') || options[:meta]
       options[:skip_collection_check] = options.delete('skip_collection_check') || options[:skip_collection_check] || false
       options[:base_url] = options.delete('base_url') || options[:base_url]
 
@@ -301,6 +303,7 @@ module JSONAPI
       result = {
         'data' => primary_data,
       }
+      result['meta'] = options[:meta].deep_stringify_keys if options[:meta].is_a?(Hash)
 
       # If 'include' relationships are given, recursively find and include each object.
       if includes
