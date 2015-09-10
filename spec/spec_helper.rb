@@ -5,6 +5,9 @@ require './spec/support/serializers'
 RSpec.configure do |config|
   config.include FactoryGirl::Syntax::Methods
 
+  # Don't allow shoulda matcher syntax.
+  config.raise_errors_for_deprecations!
+
   config.mock_with :rspec do |mocks|
     mocks.verify_partial_doubles = true
   end
