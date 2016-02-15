@@ -239,6 +239,7 @@ module JSONAPI
       # Normalize includes.
       includes = options[:include]
       includes = (includes.is_a?(String) ? includes.split(',') : includes).uniq if includes
+      includes = includes.map { |include| include.to_s } if includes
 
       # An internal-only structure that is passed through serializers as they are created.
       passthrough_options = {
